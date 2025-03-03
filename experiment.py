@@ -17,14 +17,17 @@ clock = expyriment.misc.Clock()
 kb = expyriment.io.Keyboard()
 
 # DataFrame
-df_pdata = pd.DataFrame(columns=["Participant Code", "Number of Squares", "Number of Switches","Display Time", "Correct"])
+df_pdata = pd.DataFrame(columns=["Participant Code", "Elapsed Time (Seconds)", "Number of Squares", "Number of Switches","Display Time", "Correct"])
 
 # Button Canvas
 canvas = expyriment.stimuli.Canvas((700, 700))
 
 # Button Data
 
-def generate_array(length, switches):
+intensity_dict = {1: 2.4, 2: 2.2, 3: 1.8, 4: 1.5, 5: 1.3}
+
+def generate_array(length, intensity):
+    switches = int(length // intensity)
     if switches >= length:
         raise ValueError("Number of switches must be less than the length of the array")
 
@@ -139,7 +142,7 @@ def run_experiment():
         practice_trial = [0,1,1,0,0,0,1,0,0,1]
         for i in practice_trial:
             fs.present()
-            clock.wait(500)
+            clock.wait(250)
             canvas.unload()
 
             if i == 0:
@@ -149,7 +152,7 @@ def run_experiment():
 
             shape.plot(canvas)
             canvas.present()
-            clock.wait(500)
+            clock.wait(800)
             canvas.unload()
 
         small_answer = ""
@@ -223,17 +226,21 @@ def run_experiment():
     num_squares_data = []
     num_switches_data = []
     display_time_data = []
+    elapsed_time_data = []
     correct_data = []
 
-    number_of_trials = 3
+    number_of_trials = 6 #number of trials = 60
     number_of_squares = 12
-    number_of_switches = 5
-    display_time = 500
+    switchintensity = 1
+    display_time = 800
+    trial_start_time = time.time()
+    num_correct = 0
+    trial_complete = False
     for j in range(number_of_trials):
-        practice_trial = generate_array(number_of_squares, number_of_switches)
-        for i in practice_trial:
+        trial_format = generate_array(number_of_squares,intensity_dict[switchintensity])
+        for i in trial_format:
             fs.present()
-            clock.wait(500)
+            clock.wait(250)
             canvas.unload()
 
             if i == 0:
@@ -255,53 +262,77 @@ def run_experiment():
         while big_answer.isdigit() == False:
             big_answer = expyriment.io.TextInput("Number of BIG squares?", message_text_size=30, user_text_size=30).get()
 
-        small_correct = len(practice_trial) - sum(practice_trial)
-        big_correct = sum(practice_trial)
+        small_correct = len(trial_format) - sum(trial_format)
+        big_correct = sum(trial_format)
 
         # Instruction 5
         instruction_header = expyriment.stimuli.TextLine("Results", text_size=60, position=(0,240))
+
+        correct_previous_trial = small_correct == int(small_answer) and big_correct == int(big_answer)
+        if correct_previous_trial:
+            num_correct += 1
         
-        if small_correct == int(small_answer) and big_correct == int(big_answer):
+        current_time = time.time() - trial_start_time
+        elapsed_time_data.append(round(current_time,3))
+        display_time_data.append(display_time)
+        participant_code_data.append(name)
+        num_squares_data.append(number_of_squares)
+        num_switches_data.append(int(intensity_dict[switchintensity] // number_of_squares))
+
+        if current_time > 900 or num_correct == 3: # num_correct == 35
+            trial_complete = True
+
+        # Adjust difficulty based on correctness
+        if correct_previous_trial:
+            if number_of_squares < 17 and switchintensity <= 5:
+                number_of_squares += 1
+            elif number_of_squares == 17 and switchintensity < 5:
+                number_of_squares -= 6
+                switchintensity += 1
+            elif number_of_squares == 17 and switchintensity == 5:
+                number_of_squares = 17
+                switchintensity = 5
+            display_time -= 20  # Decrease duration if correct
+
             instruction_text = expyriment.stimuli.TextLine("Your answer was:", text_size=40, position=(0,150))
             instruction_text1 = expyriment.stimuli.TextLine("Correct!", text_size=40, position=(0,100), text_colour=(0,255,0))
-            if j == number_of_trials - 1:
+            if j == number_of_trials - 1 or trial_complete:
                 instruction_prompt2 = expyriment.stimuli.TextLine("The task is complete", text_size=30, position=(0, -150))
             else:
                 instruction_prompt2 = expyriment.stimuli.TextLine("The next trial will be harder", text_size=30, position=(0, -150), text_colour=(255,0,0))
-            number_of_squares += 1
-            number_of_switches += 1
-            display_time -= 20
             correct_data.append(1)
-
         else:
+            if number_of_squares == 11 and switchintensity == 1:
+                number_of_squares = 11
+                switchintensity = 1
+            elif number_of_squares == 11 and switchintensity > 1:
+                number_of_squares += 6
+                switchintensity -= 1
+            elif number_of_squares > 11 and switchintensity >= 1:
+                number_of_squares -= 1
+            display_time += 20 # Increase duration if incorrect
+
             instruction_text = expyriment.stimuli.TextLine("Your answer was:", text_size=40, position=(0,150))
             instruction_text1 = expyriment.stimuli.TextLine("Incorrect!", text_size=40, position=(0,100), text_colour=(255,0,0))
-            if j == number_of_trials - 1:
+            if j == number_of_trials - 1 or trial_complete:
                 instruction_prompt2 = expyriment.stimuli.TextLine("The task is complete", text_size=30, position=(0, -150))
             else:
                 instruction_prompt2 = expyriment.stimuli.TextLine("The next trial will be easier", text_size=30, position=(0, -150), text_colour=(0,255,0))
-            number_of_squares -= 1
-            number_of_switches -= 1
-            display_time += 20
             correct_data.append(0)
-        
-        participant_code_data.append(name)
-        num_squares_data.append(number_of_squares)
-        num_switches_data.append(number_of_switches)
-        display_time_data.append(display_time)
-
-        instruction_prompt = expyriment.stimuli.TextLine("Press Spacebar to Proceed...", text_size=30, position=(0,-200))
 
         instruction_header.plot(instruction_canvas)
         instruction_text.plot(instruction_canvas)
         instruction_text1.plot(instruction_canvas)
-        instruction_prompt.plot(instruction_canvas)
         instruction_prompt2.plot(instruction_canvas)
         instruction_canvas.present()
         instruction_canvas.unload()
-        kb.wait_char(' ')
+        clock.wait(2000)
+
+        if trial_complete:
+            break
 
     df_pdata["Participant Code"] = participant_code_data
+    df_pdata["Elapsed Time (Seconds)"] = elapsed_time_data
     df_pdata["Number of Squares"] = num_squares_data
     df_pdata["Number of Switches"] = num_switches_data
     df_pdata["Display Time"] = display_time_data
