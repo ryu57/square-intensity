@@ -229,7 +229,8 @@ def run_experiment():
     elapsed_time_data = []
     correct_data = []
 
-    number_of_trials = 6 #number of trials = 60
+    number_of_trials = 60 #number of trials = 60
+    num_correct_end_early = 35
     number_of_squares = 12
     switchintensity = 1
     display_time = 800
@@ -279,7 +280,7 @@ def run_experiment():
         num_squares_data.append(number_of_squares)
         num_switches_data.append(int(intensity_dict[switchintensity] // number_of_squares))
 
-        if current_time > 900 or num_correct == 3: # num_correct == 35
+        if current_time > 900 or num_correct == num_correct_end_early:
             trial_complete = True
 
         # Adjust difficulty based on correctness
@@ -346,7 +347,7 @@ def run_experiment():
 
 
     # Instruction 10
-    instruction_header = expyriment.stimuli.TextLine("Please Remain At Your Seat",
+    instruction_header = expyriment.stimuli.TextLine("Please raise your hand",
                                                      text_size=55,
                                                      position=(0, 240))
     instruction_text = expyriment.stimuli.TextLine(
