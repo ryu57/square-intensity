@@ -11,7 +11,11 @@ os.makedirs(directory_path, exist_ok=True)
 
 # Start Expyriment
 exp = expyriment.design.Experiment(name="High Intensity Task")
+
+# expyriment.control.set_develop_mode(True)
 expyriment.control.initialize(exp)
+
+
 exp.mouse.show_cursor()
 clock = expyriment.misc.Clock()
 kb = expyriment.io.Keyboard()
@@ -28,6 +32,7 @@ intensity_dict = {1: 2.4, 2: 2.2, 3: 1.8, 4: 1.5, 5: 1.3}
 
 def generate_array(length, intensity):
     switches = int(length // intensity)
+    # print("switches: ", switches)
     if switches >= length:
         raise ValueError("Number of switches must be less than the length of the array")
 
@@ -45,8 +50,33 @@ def generate_array(length, intensity):
     return array
 
 
+def plot_buttons(text, canvas):
+    instruction_text = expyriment.stimuli.TextLine(f"How many {text} squares?", text_size=30, position=(0,150))
+    buttons_top = [expyriment.stimuli.Rectangle(size=(50, 50), position=(x * 60 - 310, 0), colour=(255,255,255)) for x in range(11)]
+    buttons_bottom = [expyriment.stimuli.Rectangle(size=(50, 50), position=(x * 60 - 280, -80), colour=(255,255,255)) for x in range(10)]
+    buttons = buttons_top + buttons_bottom
+    for i, button in enumerate(buttons_top):
+        button.plot(canvas)
+        text = expyriment.stimuli.TextLine(text=str(i), position=(i * 60 - 310, 0), text_colour=(0,0,0))
+        text.plot(canvas)
+    for i, button in enumerate(buttons_bottom):
+        button.plot(canvas)
+        text = expyriment.stimuli.TextLine(text=str(i + 11), position=(i * 60 - 280, -80), text_colour=(0,0,0))
+        text.plot(canvas)
 
+    instruction_text.plot(canvas)
+    canvas.present()
 
+    answer = None
+    while answer is None:
+        button_pressed, pos, rt = exp.mouse.wait_press()
+        for i, button in enumerate(buttons):
+            if button.overlapping_with_position(pos):
+                answer = i
+                break
+    canvas.unload()
+    return answer
+    
 
 
 def run_experiment():
@@ -121,6 +151,9 @@ def run_experiment():
     instruction_canvas.unload()
     kb.wait_char(' ')
 
+    fs = expyriment.stimuli.FixCross(size=(25, 25), line_width=3, colour=(127, 127, 127))
+    blank = expyriment.stimuli.BlankScreen()
+    button_delay = 300
 
     repeat = True
     while repeat:
@@ -136,7 +169,7 @@ def run_experiment():
         instruction_canvas.unload()
         kb.wait_char(' ')
 
-        fs = expyriment.stimuli.FixCross(size=(25, 25), line_width=3, colour=(127, 127, 127))
+        
 
         # Practice Trial
         practice_trial = [0,1,1,0,0,0,1,0,0,1]
@@ -155,13 +188,15 @@ def run_experiment():
             clock.wait(800)
             canvas.unload()
 
-        small_answer = ""
-        while small_answer.isdigit() == False:
-            small_answer = expyriment.io.TextInput("Number of SMALL squares?", message_text_size=30, user_text_size=30).get()
+        small_answer = plot_buttons("SMALL", canvas)
+        blank.present(canvas)
+        clock.wait(button_delay)
+        canvas.unload()
 
-        big_answer = ""
-        while big_answer.isdigit() == False:
-            big_answer = expyriment.io.TextInput("Number of BIG squares?", message_text_size=30, user_text_size=30).get()
+        big_answer = plot_buttons("BIG", canvas)
+        blank.present(canvas)
+        clock.wait(button_delay)
+        canvas.unload()
 
         small_correct = len(practice_trial) - sum(practice_trial)
         big_correct = sum(practice_trial)
@@ -237,7 +272,13 @@ def run_experiment():
     trial_start_time = time.time()
     num_correct = 0
     trial_complete = False
+
+    shape_small = expyriment.stimuli.Rectangle((70, 70), position=(0, 0), colour=(220, 220, 220))
+    shape_large = expyriment.stimuli.Rectangle((110, 110), position=(0, 0), colour=(220, 220, 220))
+    
+
     for j in range(number_of_trials):
+        # print("trial: ", j)
         trial_format = generate_array(number_of_squares,intensity_dict[switchintensity])
         for i in trial_format:
             fs.present()
@@ -245,24 +286,33 @@ def run_experiment():
             canvas.unload()
 
             if i == 0:
-                shape = expyriment.stimuli.Rectangle((70, 70), position=(0, 0), colour=(255, 255, 255))
+                shape_small.plot(canvas)
             else:
-                shape = expyriment.stimuli.Rectangle((110, 110), position=(0, 0), colour=(255, 255, 255))
+                shape_large.plot(canvas)
 
-            shape.plot(canvas)
             canvas.present()
             clock.wait(display_time)
             canvas.unload()
 
+        small_correct = len(trial_format) - sum(trial_format)
+        big_correct = sum(trial_format)
 
-        small_answer = ""
-        while small_answer.isdigit() == False:
-            small_answer = expyriment.io.TextInput("Number of SMALL squares?", message_text_size=30, user_text_size=30).get()
+        # print("small_correct: ", small_correct)
+        # print("big_correct: ", big_correct)
+        
 
-        big_answer = ""
-        while big_answer.isdigit() == False:
-            big_answer = expyriment.io.TextInput("Number of BIG squares?", message_text_size=30, user_text_size=30).get()
+        small_answer = plot_buttons("SMALL", canvas)
+        blank.present(canvas)
+        clock.wait(button_delay)
+        canvas.unload()
 
+        big_answer = plot_buttons("BIG", canvas)
+        blank.present(canvas)
+        clock.wait(button_delay)
+        canvas.unload()
+
+        # print("small_answer: ", small_answer)
+        # print("big_answer: ", big_answer)
         small_correct = len(trial_format) - sum(trial_format)
         big_correct = sum(trial_format)
 
@@ -273,15 +323,18 @@ def run_experiment():
         if correct_previous_trial:
             num_correct += 1
         
+
+        
         current_time = time.time() - trial_start_time
         elapsed_time_data.append(round(current_time,3))
         display_time_data.append(display_time)
         participant_code_data.append(name)
         num_squares_data.append(number_of_squares)
-        num_switches_data.append(int(intensity_dict[switchintensity] // number_of_squares))
+        num_switches_data.append(int(number_of_squares // intensity_dict[switchintensity]))
 
         if current_time > 900 or num_correct == num_correct_end_early:
             trial_complete = True
+
 
         # Adjust difficulty based on correctness
         if correct_previous_trial:
@@ -321,11 +374,18 @@ def run_experiment():
                 instruction_prompt2 = expyriment.stimuli.TextLine("The next trial will be easier", text_size=30, position=(0, -150), text_colour=(0,255,0))
             correct_data.append(0)
 
+        # print("=====================================")
+
         instruction_header.plot(instruction_canvas)
         instruction_text.plot(instruction_canvas)
         instruction_text1.plot(instruction_canvas)
         instruction_prompt2.plot(instruction_canvas)
         instruction_canvas.present()
+
+        instruction_header.unload()
+        instruction_text.unload()
+        instruction_text1.unload()
+        instruction_prompt2.unload()
         instruction_canvas.unload()
         clock.wait(2000)
 
@@ -361,3 +421,5 @@ def run_experiment():
 
     expyriment.control.end()
 
+if __name__ == "__main__":
+    run_experiment()
